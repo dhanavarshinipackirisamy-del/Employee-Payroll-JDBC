@@ -6,8 +6,7 @@ public class Main {
 
     public static void main(String[] args) {
 
-        PayrollDBService service = new PayrollDBService();
-
+        PayrollDBService service = PayrollDBService.getInstance();
         try {
             List<EmployeePayroll> employees =
                     service.readEmployeePayrollData();
