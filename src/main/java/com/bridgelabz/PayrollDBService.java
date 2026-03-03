@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+
 public class PayrollDBService {
 
     private static PayrollDBService instance;
@@ -118,5 +119,35 @@ public class PayrollDBService {
         } catch (SQLException e) {
             throw new PayrollException("Error updating salary: " + e.getMessage());
         }
+    }
+    public List<EmployeePayroll> getEmployeesByDateRange(LocalDate start, LocalDate end)
+            throws PayrollException {
+
+        String query = """
+            SELECT e.employee_id, e.name, p.basic_pay, e.start_date
+            FROM employee e
+            JOIN payroll p ON e.employee_id = p.employee_id
+            WHERE e.start_date BETWEEN ? AND ?
+            """;
+
+        List<EmployeePayroll> employeeList = new ArrayList<>();
+
+        try (PreparedStatement preparedStatement =
+                     connection.prepareStatement(query)) {
+
+            preparedStatement.setDate(1, Date.valueOf(start));
+            preparedStatement.setDate(2, Date.valueOf(end));
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            while (resultSet.next()) {
+                employeeList.add(mapResultSetToEmployee(resultSet));
+            }
+
+        } catch (SQLException e) {
+            throw new PayrollException("Error retrieving employees by date range");
+        }
+
+        return employeeList;
     }
 }
