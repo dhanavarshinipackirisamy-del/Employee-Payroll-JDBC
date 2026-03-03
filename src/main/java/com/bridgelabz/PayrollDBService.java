@@ -190,4 +190,101 @@ public class PayrollDBService {
 
         return statisticsList;
     }
+    public EmployeePayroll addEmployeeToPayroll(String name,
+                                                double salary,
+                                                LocalDate startDate,
+                                                String gender)
+            throws PayrollException {
+
+        String insertEmployeeQuery =
+                "INSERT INTO employee (name, gender, start_date) VALUES (?, ?, ?)";
+
+        String insertPayrollQuery =
+                "INSERT INTO payroll (employee_id, basic_pay) VALUES (?, ?)";
+
+        try {
+
+            connection.setAutoCommit(false); // Start transaction
+
+            // 1️ Insert into employee
+            PreparedStatement employeeStmt =
+                    connection.prepareStatement(insertEmployeeQuery,
+                            Statement.RETURN_GENERATED_KEYS);
+
+            employeeStmt.setString(1, name);
+            employeeStmt.setString(2, gender);
+            employeeStmt.setDate(3, Date.valueOf(startDate));
+
+            int rowsAffected = employeeStmt.executeUpdate();
+
+            if (rowsAffected == 0)
+                throw new PayrollException("Employee insert failed");
+
+            ResultSet generatedKeys = employeeStmt.getGeneratedKeys();
+
+            int employeeId = 0;
+            if (generatedKeys.next()) {
+                employeeId = generatedKeys.getInt(1);
+            }
+
+            // 2️ Insert into payroll
+            PreparedStatement payrollStmt =
+                    connection.prepareStatement(insertPayrollQuery);
+
+            payrollStmt.setInt(1, employeeId);
+            payrollStmt.setDouble(2, salary);
+
+            payrollStmt.executeUpdate();
+
+            connection.commit(); // commit transaction
+
+            return new EmployeePayroll(employeeId,
+                    name, salary, startDate);
+
+        } catch (SQLException e) {
+            try {
+                connection.rollback();
+            } catch (SQLException ignored) {}
+
+            throw new PayrollException("Error adding employee");
+        } finally {
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException ignored) {}
+        }
+
+    }
+    public void deleteEmployee(String name) throws PayrollException {
+
+        String deletePayrollQuery = """
+            DELETE p FROM payroll p
+            JOIN employee e ON p.employee_id = e.employee_id
+            WHERE e.name = ?
+            """;
+
+        String deleteEmployeeQuery =
+                "DELETE FROM employee WHERE name = ?";
+
+        try {
+            connection.setAutoCommit(false);
+
+            PreparedStatement ps1 =
+                    connection.prepareStatement(deletePayrollQuery);
+            ps1.setString(1, name);
+            ps1.executeUpdate();
+
+            PreparedStatement ps2 =
+                    connection.prepareStatement(deleteEmployeeQuery);
+            ps2.setString(1, name);
+            ps2.executeUpdate();
+
+            connection.commit();
+
+        } catch (SQLException e) {
+            try { connection.rollback(); } catch (SQLException ignored) {}
+            throw new PayrollException("Error deleting employee");
+        } finally {
+            try { connection.setAutoCommit(true); } catch (SQLException ignored) {}
+        }
+    }
 }
