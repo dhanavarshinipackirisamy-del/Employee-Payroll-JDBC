@@ -5,7 +5,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class PayrollDBService {
 
     private static PayrollDBService instance;
@@ -95,100 +94,63 @@ public class PayrollDBService {
 
         return employeeList;
     }
-    public void updateEmployeeSalary(String name, double newSalary) throws PayrollException {
+    public void updateEmployeeSalary(String name, double newSalary)
+            throws PayrollException {
 
-        String query = """
+        String updatePayrollQuery = """
             UPDATE payroll p
             JOIN employee e ON p.employee_id = e.employee_id
             SET p.basic_pay = ?
             WHERE e.name = ?
             """;
 
-        try (PreparedStatement preparedStatement =
-                     connection.prepareStatement(query)) {
+        String updateDetailsQuery =
+                "UPDATE payroll_details SET deductions=?, taxable_pay=?, income_tax=?, net_pay=? WHERE employee_id=?";
 
-            preparedStatement.setDouble(1, newSalary);
-            preparedStatement.setString(2, name);
+        try {
 
-            int rowsAffected = preparedStatement.executeUpdate();
+            connection.setAutoCommit(false);
 
-            if (rowsAffected == 0) {
-                throw new PayrollException("Employee not found!");
-            }
+            // 1️⃣ Update basic pay
+            PreparedStatement payrollStmt =
+                    connection.prepareStatement(updatePayrollQuery);
 
-        } catch (SQLException e) {
-            throw new PayrollException("Error updating salary: " + e.getMessage());
-        }
-    }
-    public List<EmployeePayroll> getEmployeesByDateRange(LocalDate start, LocalDate end)
-            throws PayrollException {
+            payrollStmt.setDouble(1, newSalary);
+            payrollStmt.setString(2, name);
+            payrollStmt.executeUpdate();
 
-        String query = """
-            SELECT e.employee_id, e.name, p.basic_pay, e.start_date
-            FROM employee e
-            JOIN payroll p ON e.employee_id = p.employee_id
-            WHERE e.start_date BETWEEN ? AND ?
-            """;
+            // 2️⃣ Calculate derived values
+            double deductions = newSalary * 0.20;
+            double taxablePay = newSalary - deductions;
+            double incomeTax = taxablePay * 0.10;
+            double netPay = taxablePay - incomeTax;
+            // 3️⃣ Get employee ID
+            EmployeePayroll employee = getEmployeeData(name);
+            int employeeId = employee.getEmployeeId();
 
-        List<EmployeePayroll> employeeList = new ArrayList<>();
+            // 4️⃣ Update payroll_details
+            PreparedStatement detailsStmt =
+                    connection.prepareStatement(updateDetailsQuery);
 
-        try (PreparedStatement preparedStatement =
-                     connection.prepareStatement(query)) {
+            detailsStmt.setDouble(1, deductions);
+            detailsStmt.setDouble(2, taxablePay);
+            detailsStmt.setDouble(3, incomeTax);
+            detailsStmt.setDouble(4, netPay);
+            detailsStmt.setInt(5, employeeId);
 
-            preparedStatement.setDate(1, Date.valueOf(start));
-            preparedStatement.setDate(2, Date.valueOf(end));
+            detailsStmt.executeUpdate();
 
-            ResultSet resultSet = preparedStatement.executeQuery();
-
-            while (resultSet.next()) {
-                employeeList.add(mapResultSetToEmployee(resultSet));
-            }
+            connection.commit();
 
         } catch (SQLException e) {
-            throw new PayrollException("Error retrieving employees by date range");
+
+            try { connection.rollback(); } catch (SQLException ignored) {}
+
+            throw new PayrollException("Error updating salary and payroll details");
+
+        } finally {
+            try { connection.setAutoCommit(true); } catch (SQLException ignored) {}
         }
-
-        return employeeList;
-    }
-    public List<PayrollStatistics> getSalaryStatisticsByGender()
-            throws PayrollException {
-
-        String query = """
-            SELECT e.gender,
-                   SUM(p.basic_pay) AS total_salary,
-                   AVG(p.basic_pay) AS average_salary,
-                   MIN(p.basic_pay) AS min_salary,
-                   MAX(p.basic_pay) AS max_salary,
-                   COUNT(*) AS employee_count
-            FROM employee e
-            JOIN payroll p ON e.employee_id = p.employee_id
-            GROUP BY e.gender
-            """;
-
-        List<PayrollStatistics> statisticsList = new ArrayList<>();
-
-        try (PreparedStatement ps = connection.prepareStatement(query);
-             ResultSet rs = ps.executeQuery()) {
-
-            while (rs.next()) {
-
-                statisticsList.add(
-                        new PayrollStatistics(
-                                rs.getString("gender"),
-                                rs.getDouble("total_salary"),
-                                rs.getDouble("average_salary"),
-                                rs.getDouble("min_salary"),
-                                rs.getDouble("max_salary"),
-                                rs.getInt("employee_count")
-                        )
-                );
-            }
-
-        } catch (SQLException e) {
-            throw new PayrollException("Error retrieving salary statistics");
-        }
-
-        return statisticsList;
     }
     public EmployeePayroll addEmployeeToPayroll(String name,
                                                 double salary,
@@ -202,57 +164,68 @@ public class PayrollDBService {
         String insertPayrollQuery =
                 "INSERT INTO payroll (employee_id, basic_pay) VALUES (?, ?)";
 
+        String insertPayrollDetailsQuery =
+                "INSERT INTO payroll_details (employee_id, deductions, taxable_pay, income_tax, net_pay) VALUES (?, ?, ?, ?, ?)";
+
         try {
 
-            connection.setAutoCommit(false); // Start transaction
+            connection.setAutoCommit(false);
 
-            // 1️ Insert into employee
-            PreparedStatement employeeStmt =
+            // 1️⃣ Insert employee
+            PreparedStatement empStmt =
                     connection.prepareStatement(insertEmployeeQuery,
                             Statement.RETURN_GENERATED_KEYS);
 
-            employeeStmt.setString(1, name);
-            employeeStmt.setString(2, gender);
-            employeeStmt.setDate(3, Date.valueOf(startDate));
+            empStmt.setString(1, name);
+            empStmt.setString(2, gender);
+            empStmt.setDate(3, Date.valueOf(startDate));
+            empStmt.executeUpdate();
 
-            int rowsAffected = employeeStmt.executeUpdate();
-
-            if (rowsAffected == 0)
-                throw new PayrollException("Employee insert failed");
-
-            ResultSet generatedKeys = employeeStmt.getGeneratedKeys();
-
+            ResultSet keys = empStmt.getGeneratedKeys();
             int employeeId = 0;
-            if (generatedKeys.next()) {
-                employeeId = generatedKeys.getInt(1);
+            if (keys.next()) {
+                employeeId = keys.getInt(1);
             }
 
-            // 2️ Insert into payroll
+            // 2️⃣ Insert payroll (basic pay)
             PreparedStatement payrollStmt =
                     connection.prepareStatement(insertPayrollQuery);
 
             payrollStmt.setInt(1, employeeId);
             payrollStmt.setDouble(2, salary);
-
             payrollStmt.executeUpdate();
 
-            connection.commit(); // commit transaction
+            // 3️⃣ Calculate derived values
+            double deductions = salary * 0.20;
+            double taxablePay = salary - deductions;
+            double incomeTax = taxablePay * 0.10;
+            double netPay = salary - incomeTax;
 
-            return new EmployeePayroll(employeeId,
-                    name, salary, startDate);
+            // 4️⃣ Insert payroll details
+            PreparedStatement detailsStmt =
+                    connection.prepareStatement(insertPayrollDetailsQuery);
+
+            detailsStmt.setInt(1, employeeId);
+            detailsStmt.setDouble(2, deductions);
+            detailsStmt.setDouble(3, taxablePay);
+            detailsStmt.setDouble(4, incomeTax);
+            detailsStmt.setDouble(5, netPay);
+
+            detailsStmt.executeUpdate();
+
+            connection.commit();
+
+            return new EmployeePayroll(employeeId, name, salary, startDate);
 
         } catch (SQLException e) {
-            try {
-                connection.rollback();
-            } catch (SQLException ignored) {}
 
-            throw new PayrollException("Error adding employee");
+            try { connection.rollback(); } catch (SQLException ignored) {}
+
+            throw new PayrollException("Error adding employee with payroll details");
+
         } finally {
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException ignored) {}
+            try { connection.setAutoCommit(true); } catch (SQLException ignored) {}
         }
-
     }
     public void deleteEmployee(String name) throws PayrollException {
 
@@ -286,5 +259,40 @@ public class PayrollDBService {
         } finally {
             try { connection.setAutoCommit(true); } catch (SQLException ignored) {}
         }
+    }
+    public PayrollDetails getPayrollDetails(String name)
+            throws PayrollException {
+
+        String query = """
+            SELECT pd.deductions,
+                   pd.taxable_pay,
+                   pd.income_tax,
+                   pd.net_pay
+            FROM payroll_details pd
+            JOIN employee e ON pd.employee_id = e.employee_id
+            WHERE e.name = ?
+            """;
+
+        try (PreparedStatement ps =
+                     connection.prepareStatement(query)) {
+
+            ps.setString(1, name);
+
+            ResultSet rs = ps.executeQuery();
+
+            if (rs.next()) {
+                return new PayrollDetails(
+                        rs.getDouble("deductions"),
+                        rs.getDouble("taxable_pay"),
+                        rs.getDouble("income_tax"),
+                        rs.getDouble("net_pay")
+                );
+            }
+
+        } catch (SQLException e) {
+            throw new PayrollException("Error retrieving payroll details");
+        }
+
+        return null;
     }
 }

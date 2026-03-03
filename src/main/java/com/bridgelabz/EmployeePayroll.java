@@ -28,4 +28,7 @@ public class EmployeePayroll {
     public double getBasicPay() {
         return basicPay;
     }
+    public int getEmployeeId() {
+        return employeeId;
+    }
 }

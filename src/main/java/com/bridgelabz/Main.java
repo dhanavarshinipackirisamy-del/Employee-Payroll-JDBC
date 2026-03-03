@@ -47,26 +47,10 @@ public class Main {
 
 
 
-            // UC5 – Retrieve By Date Range
-
-            System.out.println("\n===== EMPLOYEES JOINED BETWEEN 2018 AND NOW =====");
-
-            List<EmployeePayroll> dateRangeEmployees =
-                    service.getEmployeesByDateRange(
-                            LocalDate.of(2018, 1, 1),
-                            LocalDate.now());
-
-            dateRangeEmployees.forEach(System.out::println);
 
 
-            // UC6 – Salary Statistics
+            // UC7 – Adding New Employee
 
-            System.out.println("\n===== SALARY STATISTICS BY GENDER =====");
-
-            List<PayrollStatistics> stats =
-                    service.getSalaryStatisticsByGender();
-
-            stats.forEach(System.out::println);
             System.out.println("\n===== ADD NEW EMPLOYEE =====");
 
             EmployeePayroll newEmployee =
@@ -79,6 +63,18 @@ public class Main {
             System.out.println("Added:");
             System.out.println(newEmployee);
 
+            // uc9
+
+            System.out.println("\n===== ADD EMPLOYEE WITH PAYROLL DETAILS =====");
+
+            EmployeePayroll emp =
+                    service.addEmployeeToPayroll(
+                            "Emma",
+                            3000000,
+                            LocalDate.now(),
+                            "F");
+
+            System.out.println(emp);
 
         } catch (PayrollException e) {
             System.out.println("Error: " + e.getMessage());
