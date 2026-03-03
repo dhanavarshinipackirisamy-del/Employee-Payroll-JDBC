@@ -25,4 +25,7 @@ public class EmployeePayroll {
                 ", startDate=" + startDate +
                 '}';
     }
+    public double getBasicPay() {
+        return basicPay;
+    }
 }
