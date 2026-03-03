@@ -46,7 +46,7 @@ public class PayrollDBService {
 
         return employeeList;
     }
-    public boolean updateEmployeeSalary(String name, double newSalary) throws PayrollException {
+    public void updateEmployeeSalary(String name, double newSalary) throws PayrollException {
 
         String query = """
             UPDATE payroll p
@@ -61,38 +61,43 @@ public class PayrollDBService {
             preparedStatement.setDouble(1, newSalary);
             preparedStatement.setString(2, name);
 
-            int rowsAffected = preparedStatement.executeUpdate();
+            int rows = preparedStatement.executeUpdate();
 
-            return rowsAffected > 0;
+            if (rows == 0) {
+                throw new PayrollException("Employee not found!");
+            }
 
         } catch (SQLException e) {
-            throw new PayrollException("Unable to update salary: " + e.getMessage());
+            throw new PayrollException("Error updating salary: " + e.getMessage());
         }
     }
-    public double getEmployeeSalary(String name) throws PayrollException {
-
+    public EmployeePayroll getEmployeeData(String name) throws PayrollException {
         String query = """
-            SELECT p.basic_pay
-            FROM payroll p
-            JOIN employee e ON p.employee_id = e.employee_id
+            SELECT e.employee_id, e.name, p.basic_pay, e.start_date
+            FROM employee e
+            JOIN payroll p ON e.employee_id = p.employee_id
             WHERE e.name = ?
             """;
 
         try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD);
-             PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+             PreparedStatement ps = connection.prepareStatement(query)) {
 
-            preparedStatement.setString(1, name);
+            ps.setString(1, name);
+            ResultSet rs = ps.executeQuery();
 
-            ResultSet resultSet = preparedStatement.executeQuery();
-
-            if (resultSet.next()) {
-                return resultSet.getDouble("basic_pay");
+            if (rs.next()) {
+                return new EmployeePayroll(
+                        rs.getInt("employee_id"),
+                        rs.getString("name"),
+                        rs.getDouble("basic_pay"),
+                        rs.getDate("start_date").toLocalDate()
+                );
             }
 
         } catch (SQLException e) {
-            throw new PayrollException("Error fetching salary: " + e.getMessage());
+            throw new PayrollException("Error retrieving employee data");
         }
 
-        return 0;
+        return null;
     }
 }

@@ -18,15 +18,14 @@ public class PayrollDBServiceTest {
         Assertions.assertEquals(3, employees.size());
     }
     @Test
-    public void givenNewSalaryForTerisa_WhenUpdated_ShouldSyncWithDatabase() throws PayrollException {
+    public void givenUpdatedSalary_WhenSynced_ShouldMatchWithDatabase() throws PayrollException {
 
         PayrollDBService service = new PayrollDBService();
 
-        boolean updated = service.updateEmployeeSalary("Terisa", 3000000.00);
-        Assertions.assertTrue(updated);
+        service.updateEmployeeSalary("Terisa", 3200000.00);
 
-        double salary = service.getEmployeeSalary("Terisa");
+        EmployeePayroll employee = service.getEmployeeData("Terisa");
 
-        Assertions.assertEquals(3000000.00, salary);
+        Assertions.assertEquals(3200000.00, employee.getBasicPay());
     }
 }
