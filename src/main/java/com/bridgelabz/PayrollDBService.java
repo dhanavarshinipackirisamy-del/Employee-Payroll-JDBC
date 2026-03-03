@@ -46,4 +46,53 @@ public class PayrollDBService {
 
         return employeeList;
     }
+    public boolean updateEmployeeSalary(String name, double newSalary) throws PayrollException {
+
+        String query = """
+            UPDATE payroll p
+            JOIN employee e ON p.employee_id = e.employee_id
+            SET p.basic_pay = ?
+            WHERE e.name = ?
+            """;
+
+        try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+
+            preparedStatement.setDouble(1, newSalary);
+            preparedStatement.setString(2, name);
+
+            int rowsAffected = preparedStatement.executeUpdate();
+
+            return rowsAffected > 0;
+
+        } catch (SQLException e) {
+            throw new PayrollException("Unable to update salary: " + e.getMessage());
+        }
+    }
+    public double getEmployeeSalary(String name) throws PayrollException {
+
+        String query = """
+            SELECT p.basic_pay
+            FROM payroll p
+            JOIN employee e ON p.employee_id = e.employee_id
+            WHERE e.name = ?
+            """;
+
+        try (Connection connection = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+
+            preparedStatement.setString(1, name);
+
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            if (resultSet.next()) {
+                return resultSet.getDouble("basic_pay");
+            }
+
+        } catch (SQLException e) {
+            throw new PayrollException("Error fetching salary: " + e.getMessage());
+        }
+
+        return 0;
+    }
 }
