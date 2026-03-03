@@ -150,4 +150,44 @@ public class PayrollDBService {
 
         return employeeList;
     }
+    public List<PayrollStatistics> getSalaryStatisticsByGender()
+            throws PayrollException {
+
+        String query = """
+            SELECT e.gender,
+                   SUM(p.basic_pay) AS total_salary,
+                   AVG(p.basic_pay) AS average_salary,
+                   MIN(p.basic_pay) AS min_salary,
+                   MAX(p.basic_pay) AS max_salary,
+                   COUNT(*) AS employee_count
+            FROM employee e
+            JOIN payroll p ON e.employee_id = p.employee_id
+            GROUP BY e.gender
+            """;
+
+        List<PayrollStatistics> statisticsList = new ArrayList<>();
+
+        try (PreparedStatement ps = connection.prepareStatement(query);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+
+                statisticsList.add(
+                        new PayrollStatistics(
+                                rs.getString("gender"),
+                                rs.getDouble("total_salary"),
+                                rs.getDouble("average_salary"),
+                                rs.getDouble("min_salary"),
+                                rs.getDouble("max_salary"),
+                                rs.getInt("employee_count")
+                        )
+                );
+            }
+
+        } catch (SQLException e) {
+            throw new PayrollException("Error retrieving salary statistics");
+        }
+
+        return statisticsList;
+    }
 }

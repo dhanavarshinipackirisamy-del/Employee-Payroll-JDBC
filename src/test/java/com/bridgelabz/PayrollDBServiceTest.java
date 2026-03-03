@@ -47,4 +47,13 @@ public class PayrollDBServiceTest {
 
         Assertions.assertEquals(3, employees.size());
     }
+    @Test
+    public void givenEmployees_WhenGroupedByGender_ShouldReturnStatistics()
+            throws PayrollException {
+
+        List<PayrollStatistics> stats =
+                service.getSalaryStatisticsByGender();
+
+        Assertions.assertFalse(stats.isEmpty());
+    }
 }
