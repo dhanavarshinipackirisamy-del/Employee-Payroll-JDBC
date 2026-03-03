@@ -83,7 +83,5 @@ public class Main {
         } catch (PayrollException e) {
             System.out.println("Error: " + e.getMessage());
         }
-
     }
-
 }
