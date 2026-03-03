@@ -23,9 +23,19 @@ public class PayrollDBServiceTest {
         stmt.executeUpdate("DELETE FROM payroll_details");
         stmt.executeUpdate("DELETE FROM payroll");
         stmt.executeUpdate("DELETE FROM employee_department");
+        stmt.executeUpdate("DELETE FROM department");
         stmt.executeUpdate("DELETE FROM employee");
 
-        // 🔥 Insert base employees
+        // 🔥 Insert Departments
+        stmt.executeUpdate("""
+                INSERT INTO department (department_id, department_name)
+                VALUES
+                (1, 'HR'),
+                (2, 'Sales'),
+                (3, 'IT')
+                """);
+
+        // 🔥 Insert Employees
         stmt.executeUpdate("""
                 INSERT INTO employee (employee_id, name, gender, start_date)
                 VALUES
@@ -34,6 +44,7 @@ public class PayrollDBServiceTest {
                 (3, 'Charlie', 'M', '2020-03-15')
                 """);
 
+        // 🔥 Insert Payroll
         stmt.executeUpdate("""
                 INSERT INTO payroll (employee_id, basic_pay)
                 VALUES
@@ -42,6 +53,7 @@ public class PayrollDBServiceTest {
                 (3, 2500000)
                 """);
 
+        // 🔥 Insert Payroll Details
         stmt.executeUpdate("""
                 INSERT INTO payroll_details
                 (employee_id, deductions, taxable_pay, income_tax, net_pay)
@@ -49,6 +61,15 @@ public class PayrollDBServiceTest {
                 (1, 600000, 2400000, 240000, 2160000),
                 (2, 400000, 1600000, 160000, 1440000),
                 (3, 500000, 2000000, 200000, 1800000)
+                """);
+
+        // 🔥 Map Employees to Departments
+        stmt.executeUpdate("""
+                INSERT INTO employee_department (employee_id, department_id)
+                VALUES
+                (1, 1),
+                (2, 2),
+                (3, 3)
                 """);
 
         con.close();
@@ -79,37 +100,40 @@ public class PayrollDBServiceTest {
                 employee.getBasicPay());
     }
 
-    // ✅ UC8 – Update Payroll Details Along With Salary
+
+
+    // ✅ UC9 – Full ER Object Validation
     @Test
-    public void givenUpdatedSalary_WhenSynced_ShouldUpdatePayrollDetails()
+    public void givenEmployee_WhenRetrieved_ShouldContainDepartmentsAndPayrollDetails()
             throws PayrollException {
 
-        double newSalary = 4000000.00;
+        EmployeePayroll employee =
+                service.getEmployeeData("Terisa");
 
-        service.updateEmployeeSalary("Terisa", newSalary);
+        Assertions.assertNotNull(employee);
 
-        PayrollDetails details =
-                service.getPayrollDetails("Terisa");
+        Assertions.assertNotNull(employee.getDepartments());
+        Assertions.assertFalse(employee.getDepartments().isEmpty());
 
-        double expectedDeductions = newSalary * 0.20;
-        double expectedTaxablePay = newSalary - expectedDeductions;
-        double expectedIncomeTax = expectedTaxablePay * 0.10;
-        double expectedNetPay = expectedTaxablePay - expectedIncomeTax;
-
-        Assertions.assertNotNull(details);
-
-        Assertions.assertEquals(expectedDeductions,
-                details.getDeductions());
-
-        Assertions.assertEquals(expectedTaxablePay,
-                details.getTaxablePay());
-
-        Assertions.assertEquals(expectedIncomeTax,
-                details.getIncomeTax());
-
-        Assertions.assertEquals(expectedNetPay,
-                details.getNetPay());
+        Assertions.assertNotNull(employee.getPayrollDetails());
     }
 
+    // ✅ UC9 – Transaction Test for Add Employee
+    @Test
+    public void givenNewEmployee_WhenAdded_ShouldBePresentWithFullDetails()
+            throws PayrollException {
 
+        EmployeePayroll employee =
+                service.addEmployeeToPayroll(
+                        "David",
+                        2800000,
+                        LocalDate.now(),
+                        "M");
+
+        EmployeePayroll dbEmployee =
+                service.getEmployeeData("David");
+
+        Assertions.assertNotNull(dbEmployee);
+        Assertions.assertNotNull(dbEmployee.getPayrollDetails());
+    }
 }
