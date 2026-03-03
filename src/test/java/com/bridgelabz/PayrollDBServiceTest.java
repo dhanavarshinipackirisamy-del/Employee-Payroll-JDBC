@@ -2,7 +2,7 @@ package com.bridgelabz;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-
+import java.time.LocalDate;
 import java.util.List;
 
 public class PayrollDBServiceTest {
@@ -35,5 +35,16 @@ public class PayrollDBServiceTest {
 
         // Restore original salary
         service.updateEmployeeSalary("Terisa", oldSalary);
+    }
+    @Test
+    public void givenDateRange_WhenRetrieved_ShouldReturnCorrectEmployees()
+            throws PayrollException {
+
+        List<EmployeePayroll> employees =
+                service.getEmployeesByDateRange(
+                        LocalDate.of(2018, 1, 1),
+                        LocalDate.now());
+
+        Assertions.assertEquals(3, employees.size());
     }
 }
